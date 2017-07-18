@@ -11,17 +11,26 @@ using std::vector;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+  // initially set to false, set to true in first call of ProcessMeasurement
+  is_initialized_ = false;
+
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = true;
 
+  // size of the state vector
+  n_x_ = 5;
+
+  // size of the augumented state vector
+  n_y_ = n_x_ + 2;
+
   // initial state vector
-  x_ = VectorXd(5);
+  x_ = VectorXd(n_x_);
 
   // initial covariance matrix
-  P_ = MatrixXd(5, 5);
+  P_ = MatrixXd(n_x_, n_x_);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   std_a_ = 30;
@@ -62,10 +71,33 @@ UKF::~UKF() {}
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   /**
   TODO:
-
   Complete this function! Make sure you switch between lidar and radar
   measurements.
   */
+  if(is_initialized_ != true){
+    x_ << 0, 0, 0, 0, 0;
+    P_.fill(0.0); // will be finally initialized according to the sensor_type_
+    if(meas_package.sensor_type_ == MeasurementPackage::LASER){
+      x_(0) = meas_package.raw_measurements_(0);
+      x_(1) = meas_package.raw_measurements_(1);
+
+      P_(0, 0) = std_laspx_;
+      P_(1, 1) = std_laspy_;
+      P_(2, 2) = 1;
+      P_(3, 3) = 1;
+      P_(4, 4) = 1;
+    }
+    else if(meas_package.sensor_type_ == MeasurementPackage::RADAR){
+      double ro = measurement_pack.raw_measurements_(0);
+      double theta = measurement_pack.raw_measurements_(1);
+      double dro = measurement_pack.raw_measurements_(2);
+      x_(0) = ro * cos(theta);
+      x_(1) = ro * sin(theta);
+      x_(2) = dro * sqrt(( * cos(theta)) + (dro * sin(theta)));
+    }
+
+  is_initialized_ = true;
+  }
 }
 
 /**
