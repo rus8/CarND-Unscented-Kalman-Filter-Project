@@ -26,11 +26,17 @@ UKF::UKF() {
     // size of the augumented state vector
     n_aug_ = n_x_ + 2;
 
+    // number of sigma points
+    n_sig_ = 2 * n_aug_ + 1;
+
     // initial state vector
     x_ = VectorXd(n_x_);
 
     // initial covariance matrix
     P_ = MatrixXd(n_x_, n_x_);
+
+    // sigma points matrix
+    Xsig_pred_ = MatrixXd(n_aug_, n_sig_);
 
     // Process noise standard deviation longitudinal acceleration in m/s^2
     std_a_ = 30;
@@ -53,13 +59,20 @@ UKF::UKF() {
     // Radar measurement noise standard deviation radius change in m/s
     std_radrd_ = 0.3;
 
-    /**
-    TODO:
+    lambda_ = 3 - n_aug_;
 
-    Complete the initialization. See ukf.h for other member properties.
+    R_lidar_ = MatrixXd(2, 2);
+    R_lidar_ << std_laspx_ * std_laspx_, 0,
+                0, std_laspy_ * std_laspy_;
 
-    Hint: one or more values initialized above might be wildly off...
-    */
+    R_radar_ = MatrixXd(3, 3);
+    R_radar_ << std_radr_ * std_radr_, 0, 0,
+                0, std_radphi_ * std_radphi_, 0,
+                0, 0, std_radrd_ * std_radrd_;
+
+    weights_ = VectorXd(n_sig_);
+
+
 }
 
 UKF::~UKF() {}
@@ -93,11 +106,41 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             double dro = meas_package.raw_measurements_(2);
             x_(0) = ro * cos(theta);
             x_(1) = ro * sin(theta);
-            x_(2) = dro * sqrt((dro * cos(theta)) + (dro * sin(theta)));
+            double vx, vy;
+            vx = dro * cos(theta);
+            vy = dro * sin(theta);
+            x_(2) = sqrt(vx * vx + vy * vy);
+
+            P_(0, 0) = 1;
+            P_(1, 1) = 1;
+            P_(2, 2) = 1;
+            P_(3, 3) = std_radphi_;
+            P_(4, 4) = 1;
+        }
+
+        time_us_ = meas_package.timestamp_;
+
+        weights_(0) = lambda_ / (lambda_ + n_aug_);
+        for (int i = 1; i < n_sig_; i++) {
+            weights_(i) = 0.5 / (n_aug_ + lambda_);
         }
 
         is_initialized_ = true;
     }
+
+    double dt;
+    dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
+    time_us_ = meas_package.timestamp_;
+
+    Prediction(dt);
+
+    if (use_radar_ && meas_package.sensor_type_ == MeasurementPackage::RADAR){
+        UpdateRadar(meas_package);
+    }
+    if (use_laser_ && meas_package.sensor_type_ == MeasurementPackage::LASER){
+        UpdateLidar(meas_package);
+    }
+
 }
 
 /**
