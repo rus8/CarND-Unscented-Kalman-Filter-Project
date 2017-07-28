@@ -77,6 +77,8 @@ UKF::UKF() {
         weights_(i) = 0.5 / (n_aug_ + lambda_);
     }
 
+    // NIS
+    NIS_ = 0.0;
 
 }
 
@@ -319,6 +321,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     //update state mean and covariance matrix
     x_ = x_ + K * z_diff;
     P_ = P_ - K * S * K.transpose();
+
+    //consistensy measurement NIS
+    NIS_= (z_diff.transpose() * S.inverse() * z_diff);
+    NIS_ /= 6.0;
 }
 
 /**
@@ -407,4 +413,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     x_ = x_ + K * z_diff;
     P_ = P_ - K * S * K.transpose();
 
+    //consistensy measurement NIS
+    NIS_= (z_diff.transpose() * S.inverse() * z_diff);
+    NIS_ /= 7.8;
 }
